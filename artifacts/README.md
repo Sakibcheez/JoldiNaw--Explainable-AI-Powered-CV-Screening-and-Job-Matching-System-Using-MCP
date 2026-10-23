@@ -1,0 +1,1 @@
+Local, trusted model artifacts only. Offline training writes checksummed models and evaluations here. Never load untrusted pickle/joblib files. Model downloads and training are explicit operator actions.

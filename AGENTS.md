@@ -1,0 +1,2 @@
+# Development
+Keep REST, workers and MCP on shared services. Enforce tenant ownership on every lookup. Use only synthetic CVs in tests and demos. Never rank on protected attributes, represent similarity as hiring probability, or automate rejection. Do not download datasets/models or train on startup. Keep secrets out of Git. Update implementation status with actual checks and blockers. Run pytest, Ruff, frontend tests and build after relevant changes.

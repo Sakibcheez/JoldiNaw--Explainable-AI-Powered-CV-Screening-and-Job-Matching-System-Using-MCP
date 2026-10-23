@@ -1,0 +1,45 @@
+name: Deploy production
+on:
+  workflow_dispatch:
+    inputs:
+      publish_run_id:
+        description: Successful Publish images workflow run ID
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: production-deploy
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify publication and download immutable digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ inputs.publish_run_id }}
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$REPO/actions/runs/$RUN_ID" > run.json
+          jq -e '.conclusion == "success" and .name == "Publish images" and .head_branch == "main"' run.json
+          gh run download "$RUN_ID" --repo "$REPO" --name backend-digest --dir backend-digest
+          gh run download "$RUN_ID" --repo "$REPO" --name frontend-digest --dir frontend-digest
+      - name: Deploy over verified SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          backend=$(cat backend-digest/image-digest.txt)
+          frontend=$(cat frontend-digest/image-digest.txt)
+          [[ "$backend" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]
+          [[ "$frontend" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]
+          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" bash /opt/joldinaw/infra/scripts/deploy-prod.sh "$backend" "$frontend"
+
